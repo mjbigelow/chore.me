@@ -26,6 +26,7 @@ class _ChoreListScreenState extends State<ChoreListScreen> {
   final TextEditingController _controller = TextEditingController();
   int _points = 0;
   late Box _box;
+  bool _loading = true;
 
   @override
   void initState() {
@@ -35,79 +36,80 @@ class _ChoreListScreenState extends State<ChoreListScreen> {
 
   Future<void> _openBox() async {
     _box = await Hive.openBox('chores');
-    _loadChores();
+    await _loadChores();
+    if (mounted) setState(() => _loading = false);
   }
 
-  void _loadChores() {
+  Future<void> _loadChores() async {
     final savedChores = _box.get('chores', defaultValue: <Map<String, dynamic>>[]);
-    setState(() {
-      _chores = List<Map<String, dynamic>>.from(savedChores);
-      _points = 0;
-      for (var chore in _chores) {
-        if (chore['complete'] == true) _points += 10;
-      }
-    });
+    _chores = List<Map<String, dynamic>>.from(savedChores);
+    _points = 0;
+    for (var chore in _chores) {
+      if (chore['complete'] == true) _points += 10;
+    }
   }
 
-  void _addChore() {
+  Future<void> _addChore() async {
     if (_controller.text.isNotEmpty) {
       final newChore = {'task': _controller.text, 'complete': false};
       setState(() {
         _chores.add(newChore);
         _controller.clear();
       });
-      _box.put('chores', _chores);
+      await _box.put('chores', _chores);
     }
   }
 
-  void _toggleComplete(int index) {
-    setState(() {
-      if (!_chores[index]['complete']) {
+  Future<void> _toggleComplete(int index) async {
+    if (!_chores[index]['complete']) {
+      setState(() {
         _chores[index]['complete'] = true;
         _points += 10;
-      }
-    });
-    _box.put('chores', _chores);
+      });
+      await _box.put('chores', _chores);
+    }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text('ChoreMe'), backgroundColor: Colors.purple),
-    body: Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.all(16),
-          child: Row(
+    body: _loading
+        ? Center(child: CircularProgressIndicator())
+        : Column(
             children: [
-              Expanded(child: TextField(
-                controller: _controller,
-                decoration: InputDecoration(hintText: 'Add chore'),
-                onSubmitted: (_) => _addChore(),
-              )),
-              IconButton(icon: Icon(Icons.add), onPressed: _addChore),
+              Padding(
+                padding: EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(child: TextField(
+                      controller: _controller,
+                      decoration: InputDecoration(hintText: 'Add chore'),
+                      onSubmitted: (_) => _addChore(),
+                    )),
+                    IconButton(icon: Icon(Icons.add), onPressed: _addChore),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _chores.length,
+                  itemBuilder: (context, i) => ListTile(
+                    title: Text(_chores[i]['task'], style: TextStyle(
+                      decoration: _chores[i]['complete'] ? TextDecoration.lineThrough : null,
+                    )),
+                    leading: Checkbox(
+                      value: _chores[i]['complete'],
+                      onChanged: (_) => _toggleComplete(i),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Points: $_points', style: Theme.of(context).textTheme.headlineMedium),
+              ),
             ],
           ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _chores.length,
-            itemBuilder: (context, i) => ListTile(
-              title: Text(_chores[i]['task'], style: TextStyle(
-                decoration: _chores[i]['complete'] ? TextDecoration.lineThrough : null,
-              )),
-              leading: Checkbox(
-                value: _chores[i]['complete'],
-                onChanged: (_) => _toggleComplete(i),
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Points: $_points', style: Theme.of(context).textTheme.headlineMedium),
-        ),
-      ],
-    ),
   );
 
   @override
