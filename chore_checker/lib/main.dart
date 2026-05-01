@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
-void main() => runApp(ChoreMeApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  runApp(ChoreMeApp());
+}
 
 class ChoreMeApp extends StatelessWidget {
   @override
@@ -11,38 +16,58 @@ class ChoreMeApp extends StatelessWidget {
   );
 }
 
-class Chore {
-  String task;
-  bool complete;
-  Chore(this.task, this.complete);
-}
-
 class ChoreListScreen extends StatefulWidget {
   @override
   _ChoreListScreenState createState() => _ChoreListScreenState();
 }
 
 class _ChoreListScreenState extends State<ChoreListScreen> {
-  final List<Chore> _chores = [];
+  List<Map<String, dynamic>> _chores = [];
   final TextEditingController _controller = TextEditingController();
   int _points = 0;
+  late Box _box;
+
+  @override
+  void initState() {
+    super.initState();
+    _openBox();
+  }
+
+  Future<void> _openBox() async {
+    _box = await Hive.openBox('chores');
+    _loadChores();
+  }
+
+  void _loadChores() {
+    final savedChores = _box.get('chores', defaultValue: <Map<String, dynamic>>[]);
+    setState(() {
+      _chores = List<Map<String, dynamic>>.from(savedChores);
+      _points = 0;
+      for (var chore in _chores) {
+        if (chore['complete'] == true) _points += 10;
+      }
+    });
+  }
 
   void _addChore() {
     if (_controller.text.isNotEmpty) {
+      final newChore = {'task': _controller.text, 'complete': false};
       setState(() {
-        _chores.add(Chore(_controller.text, false));
+        _chores.add(newChore);
         _controller.clear();
       });
+      _box.put('chores', _chores);
     }
   }
 
   void _toggleComplete(int index) {
     setState(() {
-      if (!_chores[index].complete) {
-        _chores[index].complete = true;
-        _points += 10;  // Reward points
+      if (!_chores[index]['complete']) {
+        _chores[index]['complete'] = true;
+        _points += 10;
       }
     });
+    _box.put('chores', _chores);
   }
 
   @override
@@ -54,7 +79,11 @@ class _ChoreListScreenState extends State<ChoreListScreen> {
           padding: EdgeInsets.all(16),
           child: Row(
             children: [
-              Expanded(child: TextField(controller: _controller, decoration: InputDecoration(hintText: 'Add chore'))),
+              Expanded(child: TextField(
+                controller: _controller,
+                decoration: InputDecoration(hintText: 'Add chore'),
+                onSubmitted: (_) => _addChore(),
+              )),
               IconButton(icon: Icon(Icons.add), onPressed: _addChore),
             ],
           ),
@@ -63,8 +92,13 @@ class _ChoreListScreenState extends State<ChoreListScreen> {
           child: ListView.builder(
             itemCount: _chores.length,
             itemBuilder: (context, i) => ListTile(
-              title: Text(_chores[i].task, style: TextStyle(decoration: _chores[i].complete ? TextDecoration.lineThrough : null)),
-              leading: Checkbox(value: _chores[i].complete, onChanged: (_) => _toggleComplete(i)),
+              title: Text(_chores[i]['task'], style: TextStyle(
+                decoration: _chores[i]['complete'] ? TextDecoration.lineThrough : null,
+              )),
+              leading: Checkbox(
+                value: _chores[i]['complete'],
+                onChanged: (_) => _toggleComplete(i),
+              ),
             ),
           ),
         ),
