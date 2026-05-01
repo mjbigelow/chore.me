@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,17 +28,37 @@ class _ChoreListScreenState extends State<ChoreListScreen> {
   int _points = 0;
   late Box _box;
   bool _loading = true;
+  List<String> kids = [];
+  String? selectedKid;
+  late SharedPreferences prefs;
 
   @override
   void initState() {
     super.initState();
-    _openBox();
+    _initApp();
+  }
+
+  Future<void> _initApp() async {
+    prefs = await SharedPreferences.getInstance();
+    _loadKids();
+    await _openBox();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadKids() async {
+    kids = prefs.getStringList('kids') ?? ['Kid1', 'Kid2'];
+    selectedKid = prefs.getString('selectedKid') ?? kids[0];
+  }
+
+  Future<void> _saveKids() async {
+    await prefs.setStringList('kids', kids);
+    await prefs.setString('selectedKid', selectedKid ?? '');
   }
 
   Future<void> _openBox() async {
-    _box = await Hive.openBox('chores');
+    final kidKey = selectedKid ?? 'default';
+    _box = await Hive.openBox('chores_$kidKey');
     await _loadChores();
-    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadChores() async {
@@ -46,6 +67,33 @@ class _ChoreListScreenState extends State<ChoreListScreen> {
     _points = 0;
     for (var chore in _chores) {
       if (chore['complete'] == true) _points += 10;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _switchKid(String? kid) async {
+    if (kid != null && kid != selectedKid) {
+      selectedKid = kid;
+      await _saveKids();
+      await _openBox();
+    }
+  }
+
+  Future<void> _addKid() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('New Kid'),
+        content: TextField(decoration: InputDecoration(hintText: 'Kid name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, 'New Kid'), child: Text('Add')),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      setState(() => kids.add(name));
+      await _saveKids();
     }
   }
 
@@ -72,21 +120,36 @@ class _ChoreListScreenState extends State<ChoreListScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('ChoreMe'), backgroundColor: Colors.purple),
+    appBar: AppBar(
+      title: Text('ChoreMe'),
+      backgroundColor: Colors.purple,
+      actions: [
+        PopupMenuButton<String>(
+          onSelected: _switchKid,
+          itemBuilder: (context) => kids.map((kid) => PopupMenuItem(value: kid, child: Text(kid))).toList(),
+        ),
+        IconButton(icon: Icon(Icons.person_add), onPressed: _addKid),
+      ],
+    ),
     body: _loading
         ? Center(child: CircularProgressIndicator())
         : Column(
             children: [
               Padding(
                 padding: EdgeInsets.all(16),
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(child: TextField(
-                      controller: _controller,
-                      decoration: InputDecoration(hintText: 'Add chore'),
-                      onSubmitted: (_) => _addChore(),
-                    )),
-                    IconButton(icon: Icon(Icons.add), onPressed: _addChore),
+                    Text(selectedKid ?? 'Default', style: Theme.of(context).textTheme.headlineSmall),
+                    Row(
+                      children: [
+                        Expanded(child: TextField(
+                          controller: _controller,
+                          decoration: InputDecoration(hintText: 'Add chore'),
+                          onSubmitted: (_) => _addChore(),
+                        )),
+                        IconButton(icon: Icon(Icons.add), onPressed: _addChore),
+                      ],
+                    ),
                   ],
                 ),
               ),
