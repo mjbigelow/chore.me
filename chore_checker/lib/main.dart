@@ -240,7 +240,7 @@ class _ChoreListScreenState extends State<ChoreListScreen> with TickerProviderSt
       Container(
         padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [Colors.purple[300]!, Colors.purple[600]!]),
+          gradient: LinearGradient(colors: [Colors.purple[100]!, Colors.purple[300]!]),
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
         child: Column(
@@ -250,13 +250,13 @@ class _ChoreListScreenState extends State<ChoreListScreen> with TickerProviderSt
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
-                shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+                color: Colors.black87,
+                shadows: [Shadow(blurRadius: 2, color: Colors.black26)],
               ),
             ),
             Text(
               '${kidPoints[kid] ?? 0} points',
-              style: TextStyle(fontSize: 18, color: Colors.orange[300], fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, color: Colors.orange[800], fontWeight: FontWeight.bold),
             ),
           ],
         ),
