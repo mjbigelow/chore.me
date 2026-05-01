@@ -1,6 +1,14 @@
 {
-  "framework": null,
-  "installCommand": "",
-  "buildCommand": "",
-  "outputDirectory": "chore_checker/build/web"
+  "builds": [
+    {
+      "src": "chore_checker/build/web/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }
