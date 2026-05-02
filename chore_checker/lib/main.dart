@@ -100,21 +100,30 @@ class ChoreScreen extends StatefulWidget {
   _ChoreScreenState createState() => _ChoreScreenState();
 }
 
-class _ChoreScreenState extends State<ChoreScreen> {
+class _ChoreScreenState extends State<ChoreScreen> with TickerProviderStateMixin {
   final supabase = Supabase.instance.client;
   List<dynamic> _chores = [];
   final _controller = TextEditingController();
   int _points = 0;
+  String? selectedKid;
+  late TabController _tabController;
+  List<String> _kids = ['default'];
+  final _kidController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadChores();
   }
 
   Future<void> _loadChores() async {
     final userId = supabase.auth.currentUser!.id;
-    final response = await supabase.from('chores').select().eq('user_id', userId);
+    var query = supabase.from('chores').select().eq('user_id', userId);
+    if (selectedKid != null) {
+      query = query.eq('kid', selectedKid!);
+    }
+    final response = await query;
     setState(() => _chores = response);
     _calculatePoints();
   }
@@ -130,13 +139,22 @@ class _ChoreScreenState extends State<ChoreScreen> {
     if (_controller.text.isNotEmpty) {
       await supabase.from('chores').insert({
         'user_id': supabase.auth.currentUser!.id,
-        'kid': 'default',
+        'kid': selectedKid ?? 'default',
         'task': _controller.text,
         'complete': false,
         'points': 10,
       });
       _controller.clear();
       _loadChores();
+    }
+  }
+
+  Future<void> _addKid() async {
+    if (_kidController.text.isNotEmpty) {
+      setState(() {
+        _kids.add(_kidController.text.trim());
+      });
+      _kidController.clear();
     }
   }
 
@@ -151,6 +169,13 @@ class _ChoreScreenState extends State<ChoreScreen> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text('Chores'),
+      bottom: TabBar(
+        controller: _tabController,
+        tabs: const [
+          Tab(text: 'Overview'),
+          Tab(text: 'Kids'),
+        ],
+      ),
       actions: [
         IconButton(
           icon: Icon(Icons.logout),
@@ -158,32 +183,92 @@ class _ChoreScreenState extends State<ChoreScreen> {
         ),
       ],
     ),
-    body: Column(
+    body: TabBarView(
+      controller: _tabController,
       children: [
         Padding(
-          padding: EdgeInsets.all(16),
-          child: Row(
+          padding: EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(child: TextField(controller: _controller, decoration: InputDecoration(hintText: 'Add chore'))),
-              IconButton(icon: Icon(Icons.add), onPressed: _addChore),
+              Text('Total Chores: ${_chores.length}', style: Theme.of(context).textTheme.headlineSmall),
+              Text('Points: $_points', style: Theme.of(context).textTheme.headlineMedium),
             ],
           ),
         ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _chores.length,
-            itemBuilder: (context, i) => ListTile(
-              title: Text(_chores[i]['task']),
-              leading: Checkbox(
-                value: _chores[i]['complete'],
-                onChanged: (_) => _toggle(i),
+        Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _kidController,
+                      decoration: InputDecoration(hintText: 'Add kid'),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.add),
+                    onPressed: _addKid,
+                  ),
+                ],
               ),
             ),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Points: $_points', style: Theme.of(context).textTheme.headlineMedium),
+            SizedBox(
+              height: 150,
+              child: ListView.builder(
+                itemCount: _kids.length,
+                itemBuilder: (context, index) => ListTile(
+                  title: Text(_kids[index]),
+                  trailing: Radio<String>(
+                    value: _kids[index],
+                    groupValue: selectedKid,
+                    onChanged: (value) {
+                      setState(() {
+                        selectedKid = value;
+                      });
+                      _loadChores();
+                    },
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      decoration: InputDecoration(hintText: 'Add chore'),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.add),
+                    onPressed: _addChore,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _chores.length,
+                itemBuilder: (context, i) => ListTile(
+                  title: Text(_chores[i]['task']),
+                  subtitle: Text('Kid: ${_chores[i]['kid'] ?? 'unknown'}'),
+                  leading: Checkbox(
+                    value: _chores[i]['complete'],
+                    onChanged: (_) => _toggle(i),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('Points: $_points', style: Theme.of(context).textTheme.headlineMedium),
+            ),
+          ],
         ),
       ],
     ),
