@@ -165,6 +165,22 @@ class _ChoreScreenState extends State<ChoreScreen> with TickerProviderStateMixin
     }
   }
 
+  Future<void> _editChore(int index) async {
+    final chore = _chores[index];
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => EditChoreDialog(
+        chore: chore,
+        onUpdate: (String task, int points) async {
+          await supabase.from('chores')
+              .update({'task': task, 'points': points})
+              .eq('id', chore['id']);
+          _loadChores();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -254,12 +270,15 @@ class _ChoreScreenState extends State<ChoreScreen> with TickerProviderStateMixin
             Expanded(
               child: ListView.builder(
                 itemCount: _chores.length,
-                itemBuilder: (context, i) => ListTile(
-                  title: Text(_chores[i]['task']),
-                  subtitle: Text('Kid: ${_chores[i]['kid'] ?? 'unknown'}'),
-                  leading: Checkbox(
-                    value: _chores[i]['complete'],
-                    onChanged: (_) => _toggle(i),
+                itemBuilder: (context, i) => GestureDetector(
+                  onLongPress: () => _editChore(i),
+                  child: ListTile(
+                    title: Text(_chores[i]['task']),
+                    subtitle: Text('Kid: ${_chores[i]['kid'] ?? 'unknown'}'),
+                    leading: Checkbox(
+                      value: _chores[i]['complete'],
+                      onChanged: (_) => _toggle(i),
+                    ),
                   ),
                 ),
               ),
@@ -273,4 +292,67 @@ class _ChoreScreenState extends State<ChoreScreen> with TickerProviderStateMixin
       ],
     ),
   );
+}
+
+class EditChoreDialog extends StatefulWidget {
+  final Map<String, dynamic> chore;
+  final void Function(String, int) onUpdate;
+
+  const EditChoreDialog({
+    super.key,
+    required this.chore,
+    required this.onUpdate,
+  });
+
+  @override
+  State<EditChoreDialog> createState() => _EditChoreDialogState();
+}
+
+class _EditChoreDialogState extends State<EditChoreDialog> {
+  late final TextEditingController _taskController;
+  late final TextEditingController _pointsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _taskController = TextEditingController(text: widget.chore['task']);
+    _pointsController = TextEditingController(text: widget.chore['points'].toString());
+  }
+
+  @override
+  void dispose() {
+    _taskController.dispose();
+    _pointsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Chore'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _taskController,
+            decoration: const InputDecoration(labelText: 'Task'),
+          ),
+          TextField(
+            controller: _pointsController,
+            decoration: const InputDecoration(labelText: 'Points'),
+            keyboardType: TextInputType.number,
+          ),
+        ],
+      ),
+      actions: [
+        ElevatedButton(
+          onPressed: () {
+            widget.onUpdate(_taskController.text, int.parse(_pointsController.text));
+            if (context.mounted) Navigator.of(context).pop();
+          },
+          child: const Text('Update'),
+        ),
+      ],
+    );
+  }
 }
